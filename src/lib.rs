@@ -7,6 +7,9 @@
 extern crate libc;
 mod ffi;
 
+extern crate rand;
+use rand::Rng;
+
 #[derive(Debug)]
 pub struct RTLSDRError {
     errno: i32,
@@ -104,6 +107,11 @@ pub fn open(index: i32) -> Result<RTLSDRDevice, RTLSDRError> {
         0 => Ok(device),
         err => Err(rtlsdr_error(err, "Unknown"))
     }
+}
+
+pub trait readableDevice
+{
+    fn read_sync(&mut self, len: usize)-> Result<std::vec::Vec<u8>, RTLSDRError>;
 }
 
 impl RTLSDRDevice {
@@ -394,20 +402,45 @@ impl RTLSDRDevice {
         }
     }
 
+}
+
+impl readableDevice for RTLSDRDevice
+{
     /// Read a buffer synchronously.
-    pub fn read_sync(&mut self, len: usize)
-                     -> Result<std::vec::Vec<u8>, RTLSDRError> {
+    fn read_sync(&mut self, len: usize)
+    -> Result<std::vec::Vec<u8>, RTLSDRError> {
         use std::vec::Vec;
         let mut v: Vec<u8> = Vec::with_capacity(len);
         let mut n: libc::c_int = 0;
         let ptr: *mut libc::c_void = v.as_mut_ptr() as (*mut libc::c_void);
         match unsafe { ffi::rtlsdr_read_sync(self.ptr, ptr, len as libc::c_int,
-                                             &mut n) } {
-            0 => {
-                unsafe { v.set_len(n as usize) };
-                Ok(v)
-            },
-            err => Err(rtlsdr_error(err, "Unknown"))
+            &mut n) } {
+                0 => {
+                    unsafe { v.set_len(n as usize) };
+                    Ok(v)
+                },
+                err => Err(rtlsdr_error(err, "Unknown"))
+            }
         }
+}
+
+struct RTLSDRTestDevice
+{
+
+}
+
+impl readableDevice for RTLSDRTestDevice
+{
+    /// Read a buffer synchronously.
+    fn read_sync(&mut self, len: usize)
+    -> Result<std::vec::Vec<u8>, RTLSDRError> {
+        use std::vec::Vec;
+        let mut v: Vec<u8> = Vec::with_capacity(len);
+        let mut rng = rand::thread_rng();
+        for i in 0..v.len()
+        {
+            v[i] = rng.gen();
+        }
+        Ok(v)
     }
 }
